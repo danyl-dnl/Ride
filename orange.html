@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MECRide - Share Your Cab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s ease, color 0.3s ease; }
+        .gradient-bg { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
+        .modal-content { background-color: white; margin: 2% auto; padding: 20px; border-radius: 12px; width: 95%; max-width: 500px; position: relative; max-height: 95vh; overflow-y: auto; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; }
+        .close:hover { color: #000; }
+        .loading { display: none; }
+        .loading.show { display: inline-block; }
+        .spinner { border: 2px solid #f3f3f3; border-top: 2px solid #f97316; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .notification { position: fixed; top: 20px; left: 20px; right: 20px; z-index: 2000; padding: 16px; border-radius: 8px; color: white; font-weight: 500; transform: translateY(-100px); transition: transform 0.3s ease; max-width: calc(100vw - 40px); }
+        .notification.show { transform: translateY(0); }
+        .notification.success { background-color: #10b981; }
+        .notification.error { background-color: #ef4444; }
+        .notification.info { background-color: #3b82f6; }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .modal-content { margin: 5% auto; width: 95%; max-width: none; padding: 16px; }
+            .card-hover:hover { transform: none; }
+            .notification { top: 10px; left: 10px; right: 10px; max-width: calc(100vw - 20px); }
+        }
+        
+        /* Mobile menu */
+        .mobile-menu { display: none; }
+        @media (max-width: 768px) {
+            .mobile-menu { display: block; }
+            .desktop-nav { display: none; }
+        }
+        
+        /* Touch-friendly buttons */
+        @media (max-width: 768px) {
+            button, .btn { min-height: 44px; padding: 12px 16px; }
+            input, select, textarea { min-height: 44px; padding: 12px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-800" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
+                        </svg>
+                    </div>
+                    <h1 class="text-xl sm:text-2xl font-bold">MECRide</h1>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <nav class="desktop-nav hidden md:flex space-x-6">
+                    <div id="guestNav" class="flex space-x-6">
+                        <button onclick="showLoginModal()" class="hover:text-orange-200 transition-colors">Login</button>
+                        <button onclick="showRegisterModal()" class="hover:text-orange-200 transition-colors">Register</button>
+                    </div>
+                    <div id="userNav" class="flex space-x-6 hidden">
+                        <button onclick="showMyRides()" class="hover:text-orange-200 transition-colors">My Rides</button>
+                        <button onclick="showMessages()" class="hover:text-orange-200 transition-colors relative">
+                            Messages
+                            <span id="messageNotificationBadge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                        </button>
+                        <button onclick="showContactRequests()" class="hover:text-orange-200 transition-colors relative">
+                            Contact Requests
+                            <span id="contactNotificationBadge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                        </button>
+                        <button onclick="showProfile()" class="hover:text-orange-200 transition-colors">Profile</button>
+                        <button onclick="logout()" class="hover:text-orange-200 transition-colors">Logout</button>
+                    </div>
+                </nav>
+                
+                <!-- Mobile Menu Button -->
+                <button onclick="toggleMobileMenu()" class="mobile-menu md:hidden p-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Mobile Navigation Menu -->
+            <div id="mobileNavMenu" class="mobile-menu hidden mt-4 pb-4 border-t border-orange-400">
+                <div id="mobileGuestNav" class="space-y-2 mt-4">
+                    <button onclick="showLoginModal(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors">Login</button>
+                    <button onclick="showRegisterModal(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors">Register</button>
+                </div>
+                <div id="mobileUserNav" class="space-y-2 mt-4 hidden">
+                    <button onclick="showMyRides(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors">My Rides</button>
+                    <button onclick="showMessages(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors relative">
+                        Messages
+                        <span id="mobileMessageNotificationBadge" class="absolute top-2 right-4 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    </button>
+                    <button onclick="showContactRequests(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors relative">
+                        Contact Requests
+                        <span id="mobileContactNotificationBadge" class="absolute top-2 right-4 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    </button>
+                    <button onclick="showProfile(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors">Profile</button>
+                    <button onclick="logout(); closeMobileMenu();" class="block w-full text-left py-2 px-4 hover:bg-orange-600 rounded transition-colors">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('loginModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Login to MECRide</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                    <input type="email" id="loginEmail" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
+                    <input type="password" id="loginPassword" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <button type="submit" class="w-full gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                    <span class="loading spinner"></span>
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('registerModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Join MECRide</h2>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Full Name</label>
+                    <input type="text" id="registerName" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                    <input type="email" id="registerEmail" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Phone Number</label>
+                    <input type="tel" id="registerPhone" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
+                    <input type="password" id="registerPassword" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <button type="submit" class="w-full gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                    <span class="loading spinner"></span>
+                    Register
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Post Ride Modal -->
+    <div id="postRideModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('postRideModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Post a Ride</h2>
+            <form id="postRideForm" onsubmit="handlePostRide(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">From</label>
+                    <input type="text" id="rideFrom" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="Starting location">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">To</label>
+                    <input type="text" id="rideTo" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="Destination">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Date & Time</label>
+                    <input type="datetime-local" id="rideDateTime" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Available Seats</label>
+                    <select id="rideSeats" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                        <option value="">Select seats</option>
+                        <option value="1">1 seat</option>
+                        <option value="2">2 seats</option>
+                        <option value="3">3 seats</option>
+                        <option value="4">4 seats</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Price per person (₹)</label>
+                    <input type="number" id="ridePrice" required min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="100">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Contact Privacy</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" name="contactPrivacy" value="public" class="mr-2">
+                            <span class="text-sm">
+                                <strong>Public</strong> - Show my contact details immediately
+                            </span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="contactPrivacy" value="request" class="mr-2" checked>
+                            <span class="text-sm">
+                                <strong>Request Approval</strong> - Require my approval before sharing contact details (Recommended)
+                            </span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="contactPrivacy" value="messages" class="mr-2">
+                            <span class="text-sm">
+                                <strong>Messages Only</strong> - Contact me only through app messaging
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Additional Notes</label>
+                    <textarea id="rideNotes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" rows="3" placeholder="Any special instructions or preferences"></textarea>
+                </div>
+                <button type="submit" class="w-full gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                    <span class="loading spinner"></span>
+                    Post Ride
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Messages Modal -->
+    <div id="messagesModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeModal('messagesModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Messages</h2>
+            <div id="messagesList" class="space-y-4 max-h-96 overflow-y-auto">
+                <!-- Messages will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- My Rides Modal -->
+    <div id="myRidesModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close" onclick="closeModal('myRidesModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">My Rides</h2>
+            <div class="mb-4">
+                <div class="flex space-x-4">
+                    <button onclick="showMyPostedRides()" id="postedRidesTab" class="px-4 py-2 bg-orange-500 text-white rounded-lg">Posted Rides</button>
+                    <button onclick="showMyBookedRides()" id="bookedRidesTab" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg">Booked Rides</button>
+                </div>
+            </div>
+            <div id="myRidesList" class="space-y-4 max-h-96 overflow-y-auto">
+                <!-- Rides will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('profileModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">My Profile</h2>
+            <div id="profileContent">
+                <!-- Profile content will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Request Modal -->
+    <div id="contactRequestModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('contactRequestModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Contact Driver</h2>
+            <div id="contactRequestContent">
+                <!-- Content will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Approval Modal -->
+    <div id="contactApprovalModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeModal('contactApprovalModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Contact Requests</h2>
+            <div id="contactApprovalList" class="space-y-4 max-h-96 overflow-y-auto">
+                <!-- Contact requests will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Ride Modal -->
+    <div id="editRideModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editRideModal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Edit Ride</h2>
+            <form id="editRideForm" onsubmit="handleEditRide(event)">
+                <input type="hidden" id="editRideId">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">From</label>
+                    <input type="text" id="editRideFrom" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="Starting location">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">To</label>
+                    <input type="text" id="editRideTo" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="Destination">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Date & Time</label>
+                    <input type="datetime-local" id="editRideDateTime" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Available Seats</label>
+                    <select id="editRideSeats" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                        <option value="">Select seats</option>
+                        <option value="1">1 seat</option>
+                        <option value="2">2 seats</option>
+                        <option value="3">3 seats</option>
+                        <option value="4">4 seats</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Price per person (₹)</label>
+                    <input type="number" id="editRidePrice" required min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" placeholder="100">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Contact Privacy</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" name="editContactPrivacy" value="public" id="editContactPublic" class="mr-2">
+                            <span class="text-sm">
+                                <strong>Public</strong> - Show my contact details immediately
+                            </span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="editContactPrivacy" value="request" id="editContactRequest" class="mr-2">
+                            <span class="text-sm">
+                                <strong>Request Approval</strong> - Require my approval before sharing contact details (Recommended)
+                            </span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="editContactPrivacy" value="messages" id="editContactMessages" class="mr-2">
+                            <span class="text-sm">
+                                <strong>Messages Only</strong> - Contact me only through app messaging
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Additional Notes</label>
+                    <textarea id="editRideNotes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" rows="3" placeholder="Any special instructions or preferences"></textarea>
+                </div>
+                <div class="flex space-x-4">
+                    <button type="submit" class="flex-1 gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                        <span class="loading spinner"></span>
+                        Update Ride
+                    </button>
+                    <button type="button" onclick="closeModal('editRideModal')" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 sm:py-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-8 sm:mb-12">
+            <h2 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-4">Share Your Journey, Split the Cost</h2>
+            <p class="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 px-2">Connect with fellow travelers and make your commute affordable and social</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center px-4">
+                <button onclick="showPostRideModal()" class="gradient-bg text-white px-6 sm:px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity text-base sm:text-lg">
+                    🚗 Post a Ride
+                </button>
+                <button onclick="scrollToRides()" class="bg-white text-orange-600 border-2 border-orange-600 px-6 sm:px-8 py-3 rounded-lg font-semibold hover:bg-orange-50 transition-colors text-base sm:text-lg">
+                    🔍 Find a Ride
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
+            <h3 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">Find Your Perfect Ride</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">From</label>
+                    <input type="text" id="searchFrom" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-base" placeholder="Starting point">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">To</label>
+                    <input type="text" id="searchTo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-base" placeholder="Destination">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Date</label>
+                    <input type="date" id="searchDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-base">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="searchRides()" class="w-full gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity min-h-[44px]">
+                        Search Rides
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Rides -->
+        <div id="ridesSection">
+            <h3 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Available Rides</h3>
+            <div id="ridesList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <!-- Rides will be populated here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // Global state
+        let currentUser = null;
+        let rides = [];
+        let messages = [];
+        let bookings = [];
+        let userDatabase = []; // Simulated user database
+        let contactRequests = []; // Contact approval requests
+        let notifications = []; // Push notifications
+        let reminderTimers = []; // Active reminder timers
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('searchDate').value = today;
+            document.getElementById('rideDateTime').min = new Date().toISOString().slice(0, 16);
+            
+            // Request notification permission
+            requestNotificationPermission();
+            
+            // Load sample data
+            loadSampleData();
+            loadUserDatabase();
+            displayRides();
+            
+            // Check if user is logged in and validate against database
+            const savedUser = localStorage.getItem('mecride_user');
+            if (savedUser) {
+                const userData = JSON.parse(savedUser);
+                const dbUser = userDatabase.find(u => u.email === userData.email);
+                if (dbUser) {
+                    currentUser = dbUser;
+                    updateNavigation();
+                    // Start checking for ride reminders
+                    startReminderSystem();
+                } else {
+                    // User not found in database, clear localStorage
+                    localStorage.removeItem('mecride_user');
+                    showNotification('Your account was not found. Please create a new account.', 'error');
+                }
+            }
+            
+            // Check for ride reminders every minute
+            setInterval(checkRideReminders, 60000);
+        });
+
+        // Sample data
+        function loadSampleData() {
+            rides = [];
+        }
+
+        // Load user database (simulated)
+        function loadUserDatabase() {
+            // Load from localStorage if exists, otherwise create empty database
+            const savedDatabase = localStorage.getItem('mecride_user_database');
+            if (savedDatabase) {
+                userDatabase = JSON.parse(savedDatabase);
+            } else {
+                userDatabase = [];
+                // Save empty database to localStorage
+                localStorage.setItem('mecride_user_database', JSON.stringify(userDatabase));
+            }
+        }
+
+        // Modal functions
+        function showLoginModal() {
+            document.getElementById('loginModal').style.display = 'block';
+        }
+
+        function showRegisterModal() {
+            document.getElementById('registerModal').style.display = 'block';
+        }
+
+        function showPostRideModal() {
+            if (!currentUser) {
+                showNotification('Please login to post a ride', 'error');
+                showLoginModal();
+                return;
+            }
+            
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+            
+            document.getElementById('postRideModal').style.display = 'block';
+        }
+
+        function showMessages() {
+            if (!currentUser) {
+                showNotification('Please login to view messages', 'error');
+                showLoginModal();
+                return;
+            }
+            
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+            
+            loadMessages();
+            document.getElementById('messagesModal').style.display = 'block';
+        }
+
+        function showMyRides() {
+            if (!currentUser) {
+                showNotification('Please login to view your rides', 'error');
+                showLoginModal();
+                return;
+            }
+            
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+            
+            showMyPostedRides();
+            document.getElementById('myRidesModal').style.display = 'block';
+        }
+
+        function showProfile() {
+            if (!currentUser) {
+                showNotification('Please login to view profile', 'error');
+                showLoginModal();
+                return;
+            }
+            
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Profile not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+            
+            loadProfile();
+            document.getElementById('profileModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Authentication functions
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            // Check if user exists in database
+            const user = userDatabase.find(u => u.email === email);
+            
+            if (!user) {
+                showNotification('Account not found. Please create a new account or check your email.', 'error');
+                return;
+            }
+
+            // Check password (in real app, this would be properly hashed and compared)
+            if (user.password !== password) {
+                showNotification('Invalid password. Please try again.', 'error');
+                return;
+            }
+
+            // Login successful
+            currentUser = { ...user };
+            delete currentUser.password; // Don't store password in currentUser
+            
+            localStorage.setItem('mecride_user', JSON.stringify(currentUser));
+            updateNavigation();
+            updateContactNotifications();
+            startReminderSystem();
+            closeModal('loginModal');
+            document.getElementById('loginForm').reset();
+            showNotification(`Welcome back, ${currentUser.name}!`, 'success');
+        }
+
+        function handleRegister(event) {
+            event.preventDefault();
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const phone = document.getElementById('registerPhone').value;
+            const password = document.getElementById('registerPassword').value;
+
+            // Check if user already exists
+            const existingUser = userDatabase.find(u => u.email === email);
+            if (existingUser) {
+                showNotification('An account with this email already exists. Please login instead.', 'error');
+                return;
+            }
+
+            // Check if phone number already exists
+            const existingPhone = userDatabase.find(u => u.phone === phone);
+            if (existingPhone) {
+                showNotification('An account with this phone number already exists.', 'error');
+                return;
+            }
+
+            // Create new user
+            const newUser = {
+                id: Date.now(),
+                name: name,
+                email: email,
+                phone: phone,
+                password: password, // In real app, this would be hashed
+                rating: 5.0,
+                ridesPosted: 0,
+                ridesBooked: 0
+            };
+
+            // Add to database
+            userDatabase.push(newUser);
+            localStorage.setItem('mecride_user_database', JSON.stringify(userDatabase));
+
+            // Set as current user (without password)
+            currentUser = { ...newUser };
+            delete currentUser.password;
+            
+            localStorage.setItem('mecride_user', JSON.stringify(currentUser));
+            updateNavigation();
+            startReminderSystem();
+            closeModal('registerModal');
+            document.getElementById('registerForm').reset();
+            showNotification(`Welcome to MECRide, ${currentUser.name}!`, 'success');
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('mecride_user');
+            updateNavigation();
+            showNotification('You have been logged out successfully.', 'info');
+        }
+
+        function updateNavigation() {
+            const guestNav = document.getElementById('guestNav');
+            const userNav = document.getElementById('userNav');
+            const mobileGuestNav = document.getElementById('mobileGuestNav');
+            const mobileUserNav = document.getElementById('mobileUserNav');
+            
+            if (currentUser) {
+                guestNav.classList.add('hidden');
+                userNav.classList.remove('hidden');
+                mobileGuestNav.classList.add('hidden');
+                mobileUserNav.classList.remove('hidden');
+            } else {
+                guestNav.classList.remove('hidden');
+                userNav.classList.add('hidden');
+                mobileGuestNav.classList.remove('hidden');
+                mobileUserNav.classList.add('hidden');
+            }
+        }
+
+        // Mobile menu functions
+        function toggleMobileMenu() {
+            const mobileMenu = document.getElementById('mobileNavMenu');
+            mobileMenu.classList.toggle('hidden');
+        }
+
+        function closeMobileMenu() {
+            const mobileMenu = document.getElementById('mobileNavMenu');
+            mobileMenu.classList.add('hidden');
+        }
+
+        // Ride functions
+        function handlePostRide(event) {
+            event.preventDefault();
+            
+            const contactPrivacy = document.querySelector('input[name="contactPrivacy"]:checked').value;
+            
+            const newRide = {
+                id: Date.now(),
+                driver: currentUser,
+                from: document.getElementById('rideFrom').value,
+                to: document.getElementById('rideTo').value,
+                date: document.getElementById('rideDateTime').value.split('T')[0],
+                time: document.getElementById('rideDateTime').value.split('T')[1],
+                seats: parseInt(document.getElementById('rideSeats').value),
+                price: parseInt(document.getElementById('ridePrice').value),
+                notes: document.getElementById('rideNotes').value,
+                bookedSeats: 0,
+                contactPrivacy: contactPrivacy
+            };
+
+            rides.unshift(newRide);
+            
+            // Schedule ride reminders for driver
+            scheduleRideReminders(newRide.id, currentUser, 'driver');
+            
+            displayRides();
+            closeModal('postRideModal');
+            document.getElementById('postRideForm').reset();
+            showNotification('Your ride has been posted successfully!', 'success');
+        }
+
+        function displayRides(ridesToShow = rides) {
+            const ridesList = document.getElementById('ridesList');
+            
+            if (ridesToShow.length === 0) {
+                ridesList.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">No rides found matching your criteria.</div>';
+                return;
+            }
+
+            ridesList.innerHTML = ridesToShow.map(ride => `
+                <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                                <span class="text-orange-600 font-bold text-base sm:text-lg">${ride.driver.name.charAt(0)}</span>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-800 text-sm sm:text-base">${ride.driver.name}</h4>
+                                <div class="flex items-center">
+                                    <span class="text-yellow-400">★</span>
+                                    <span class="text-xs sm:text-sm text-gray-600 ml-1">${ride.driver.rating}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl sm:text-2xl font-bold text-orange-600">₹${ride.price}</div>
+                            <div class="text-xs sm:text-sm text-gray-500">per person</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2 mb-4">
+                        <div class="flex items-start text-gray-700 text-sm">
+                            <svg class="w-4 h-4 mr-2 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <circle cx="10" cy="10" r="3"/>
+                            </svg>
+                            <div class="flex-1">
+                                <span class="font-medium">From:</span>
+                                <span class="ml-1 break-words">${ride.from}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-start text-gray-700 text-sm">
+                            <svg class="w-4 h-4 mr-2 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <circle cx="10" cy="10" r="3"/>
+                            </svg>
+                            <div class="flex-1">
+                                <span class="font-medium">To:</span>
+                                <span class="ml-1 break-words">${ride.to}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center text-gray-700 text-sm">
+                            <svg class="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM4 9h12v8H4V9z"/>
+                            </svg>
+                            <span>${ride.date} at ${ride.time}</span>
+                        </div>
+                        <div class="flex items-center text-gray-700 text-sm">
+                            <svg class="w-4 h-4 mr-2 text-purple-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span>${ride.seats - ride.bookedSeats} seats available</span>
+                        </div>
+                    </div>
+                    
+                    ${ride.notes ? `<div class="text-xs sm:text-sm text-gray-600 mb-4 p-2 bg-gray-50 rounded break-words">${ride.notes}</div>` : ''}
+                    
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                        <button onclick="bookRide(${ride.id})" class="flex-1 gradient-bg text-white py-2 px-4 rounded-lg hover:opacity-90 transition-opacity min-h-[44px] text-sm sm:text-base ${ride.seats <= ride.bookedSeats ? 'opacity-50 cursor-not-allowed' : ''}" ${ride.seats <= ride.bookedSeats ? 'disabled' : ''}>
+                            ${ride.seats <= ride.bookedSeats ? 'Fully Booked' : 'Book Ride'}
+                        </button>
+                        <button onclick="handleContactDriver(${ride.id})" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors min-h-[44px] text-sm sm:text-base">
+                            Contact
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function searchRides() {
+            const from = document.getElementById('searchFrom').value.toLowerCase();
+            const to = document.getElementById('searchTo').value.toLowerCase();
+            const date = document.getElementById('searchDate').value;
+
+            let filteredRides = rides;
+
+            if (from) {
+                filteredRides = filteredRides.filter(ride => 
+                    ride.from.toLowerCase().includes(from)
+                );
+            }
+
+            if (to) {
+                filteredRides = filteredRides.filter(ride => 
+                    ride.to.toLowerCase().includes(to)
+                );
+            }
+
+            if (date) {
+                filteredRides = filteredRides.filter(ride => 
+                    ride.date === date
+                );
+            }
+
+            displayRides(filteredRides);
+            scrollToRides();
+        }
+
+        function bookRide(rideId) {
+            if (!currentUser) {
+                showNotification('Please login to book a ride', 'error');
+                showLoginModal();
+                return;
+            }
+
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride || ride.seats <= ride.bookedSeats) {
+                showNotification('Sorry, this ride is fully booked', 'error');
+                return;
+            }
+
+            // Check if user is trying to book their own ride
+            if (ride.driver.id === currentUser.id) {
+                showNotification('You cannot book your own ride', 'error');
+                return;
+            }
+
+            ride.bookedSeats++;
+            
+            // Add booking record
+            bookings.push({
+                id: Date.now(),
+                rideId: rideId,
+                passenger: currentUser,
+                bookingDate: new Date().toISOString(),
+                status: 'confirmed'
+            });
+
+            // Add message to driver
+            messages.push({
+                id: Date.now(),
+                from: currentUser,
+                to: ride.driver,
+                rideId: rideId,
+                message: `Hi! I've booked a seat for your ride from ${ride.from} to ${ride.to} on ${ride.date}. Looking forward to traveling with you!`,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+
+            // Send push notification to driver
+            sendPushNotification(
+                ride.driver,
+                'New Booking!',
+                `${currentUser.name} booked your ride from ${ride.from} to ${ride.to}`,
+                'booking'
+            );
+
+            // Schedule ride reminders for passenger
+            scheduleRideReminders(rideId, currentUser, 'passenger');
+
+            displayRides();
+            showNotification('Ride booked successfully! The driver will be notified.', 'success');
+        }
+
+        function handleContactDriver(rideId) {
+            if (!currentUser) {
+                showNotification('Please login to contact the driver', 'error');
+                showLoginModal();
+                return;
+            }
+
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride) return;
+
+            // Check if user is trying to contact themselves
+            if (ride.driver.id === currentUser.id) {
+                showNotification('You cannot contact yourself', 'error');
+                return;
+            }
+
+            // Handle different privacy settings
+            switch (ride.contactPrivacy) {
+                case 'public':
+                    showDriverContact(ride);
+                    break;
+                case 'request':
+                    requestDriverContact(ride);
+                    break;
+                case 'messages':
+                    contactDriver(rideId);
+                    break;
+                default:
+                    contactDriver(rideId);
+            }
+        }
+
+        function showDriverContact(ride) {
+            const contactContent = document.getElementById('contactRequestContent');
+            contactContent.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-orange-600 font-bold text-2xl">${ride.driver.name.charAt(0)}</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">${ride.driver.name}</h3>
+                    <div class="flex items-center justify-center mb-4">
+                        <span class="text-yellow-400">★</span>
+                        <span class="text-gray-600 ml-1">${ride.driver.rating} rating</span>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold text-gray-800 mb-2">Contact Information</h4>
+                        <div class="space-y-2 text-sm">
+                            <div><strong>Phone:</strong> ${ride.driver.phone}</div>
+                            <div><strong>Email:</strong> ${ride.driver.email}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold text-gray-800 mb-2">Ride Details</h4>
+                        <div class="space-y-1 text-sm">
+                            <div><strong>From:</strong> ${ride.from}</div>
+                            <div><strong>To:</strong> ${ride.to}</div>
+                            <div><strong>Date:</strong> ${ride.date} at ${ride.time}</div>
+                            <div><strong>Price:</strong> ₹${ride.price} per person</div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="closeModal('contactRequestModal')" class="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                        Close
+                    </button>
+                </div>
+            `;
+            document.getElementById('contactRequestModal').style.display = 'block';
+        }
+
+        function requestDriverContact(ride) {
+            // Check if request already exists
+            const existingRequest = contactRequests.find(req => 
+                req.rideId === ride.id && req.requester.id === currentUser.id && req.status === 'pending'
+            );
+            
+            if (existingRequest) {
+                showNotification('You have already requested contact details for this ride', 'info');
+                return;
+            }
+
+            const contactContent = document.getElementById('contactRequestContent');
+            contactContent.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-orange-600 font-bold text-2xl">${ride.driver.name.charAt(0)}</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">${ride.driver.name}</h3>
+                    
+                    <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold text-gray-800 mb-2">Ride Details</h4>
+                        <div class="space-y-1 text-sm">
+                            <div><strong>From:</strong> ${ride.from}</div>
+                            <div><strong>To:</strong> ${ride.to}</div>
+                            <div><strong>Date:</strong> ${ride.date} at ${ride.time}</div>
+                            <div><strong>Price:</strong> ₹${ride.price} per person</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-yellow-50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-gray-700">
+                            This driver requires approval before sharing contact details. 
+                            Would you like to send a contact request?
+                        </p>
+                    </div>
+                    
+                    <form onsubmit="sendContactRequest(event, ${ride.id})">
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Message (Optional)</label>
+                            <textarea id="contactRequestMessage" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" rows="3" placeholder="Hi! I'm interested in your ride and would like to get in touch..."></textarea>
+                        </div>
+                        
+                        <div class="flex space-x-4">
+                            <button type="submit" class="flex-1 bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                                Send Request
+                            </button>
+                            <button type="button" onclick="closeModal('contactRequestModal')" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.getElementById('contactRequestModal').style.display = 'block';
+        }
+
+        function sendContactRequest(event, rideId) {
+            event.preventDefault();
+            
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride) return;
+            
+            const message = document.getElementById('contactRequestMessage').value || 
+                `Hi ${ride.driver.name}! I'm interested in your ride from ${ride.from} to ${ride.to} on ${ride.date}. Could you please share your contact details?`;
+            
+            // Create contact request
+            contactRequests.push({
+                id: Date.now(),
+                rideId: rideId,
+                requester: currentUser,
+                driver: ride.driver,
+                message: message,
+                timestamp: new Date().toISOString(),
+                status: 'pending'
+            });
+            
+            closeModal('contactRequestModal');
+            showNotification('Contact request sent! The driver will be notified.', 'success');
+            updateContactNotifications();
+        }
+
+        function contactDriver(rideId) {
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride) return;
+
+            const message = `Hi ${ride.driver.name}! I'm interested in your ride from ${ride.from} to ${ride.to} on ${ride.date}. Could you please share more details?`;
+            
+            messages.push({
+                id: Date.now(),
+                from: currentUser,
+                to: ride.driver,
+                rideId: rideId,
+                message: message,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+
+            showNotification('Message sent to the driver!', 'success');
+        }
+
+        function showContactRequests() {
+            if (!currentUser) {
+                showNotification('Please login to view contact requests', 'error');
+                showLoginModal();
+                return;
+            }
+            
+            // Validate user exists in database
+            const dbUser = userDatabase.find(u => u.id === currentUser.id);
+            if (!dbUser) {
+                showNotification('Account not found in database. Please create a new account.', 'error');
+                logout();
+                return;
+            }
+            
+            loadContactRequests();
+            document.getElementById('contactApprovalModal').style.display = 'block';
+        }
+
+        function loadContactRequests() {
+            const contactApprovalList = document.getElementById('contactApprovalList');
+            const userRequests = contactRequests.filter(req => req.driver.id === currentUser.id);
+
+            if (userRequests.length === 0) {
+                contactApprovalList.innerHTML = '<div class="text-center py-8 text-gray-500">No contact requests yet</div>';
+                return;
+            }
+
+            contactApprovalList.innerHTML = userRequests.map(request => {
+                const ride = rides.find(r => r.id === request.rideId);
+                if (!ride) return '';
+                
+                return `
+                    <div class="border rounded-lg p-4 bg-white">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span class="text-blue-600 font-bold">${request.requester.name.charAt(0)}</span>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">${request.requester.name}</h4>
+                                    <div class="text-sm text-gray-600">${new Date(request.timestamp).toLocaleString()}</div>
+                                </div>
+                            </div>
+                            <div class="text-sm px-2 py-1 rounded ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : request.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                            </div>
+                        </div>
+                        
+                        <div class="text-sm text-gray-600 mb-2">
+                            <strong>Ride:</strong> ${ride.from} → ${ride.to} (${ride.date})
+                        </div>
+                        
+                        <div class="text-sm text-gray-700 mb-4 p-2 bg-gray-50 rounded">
+                            ${request.message}
+                        </div>
+                        
+                        ${request.status === 'pending' ? `
+                            <div class="flex space-x-2">
+                                <button onclick="approveContactRequest(${request.id})" class="flex-1 bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                                    Approve & Share Contact
+                                </button>
+                                <button onclick="rejectContactRequest(${request.id})" class="flex-1 bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                                    Decline
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function approveContactRequest(requestId) {
+            const request = contactRequests.find(req => req.id === requestId);
+            if (!request) return;
+            
+            request.status = 'approved';
+            
+            // Send message with contact details
+            messages.push({
+                id: Date.now(),
+                from: currentUser,
+                to: request.requester,
+                rideId: request.rideId,
+                message: `Hi ${request.requester.name}! I've approved your contact request. Here are my details:\n\nPhone: ${currentUser.phone}\nEmail: ${currentUser.email}\n\nLooking forward to the ride!`,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+            
+            // Send push notification
+            sendPushNotification(
+                request.requester,
+                'Contact Request Approved!',
+                `${currentUser.name} shared their contact details with you`,
+                'contact'
+            );
+            
+            loadContactRequests();
+            updateContactNotifications();
+            showNotification('Contact request approved and details shared!', 'success');
+        }
+
+        function rejectContactRequest(requestId) {
+            const request = contactRequests.find(req => req.id === requestId);
+            if (!request) return;
+            
+            request.status = 'rejected';
+            
+            // Send polite rejection message
+            messages.push({
+                id: Date.now(),
+                from: currentUser,
+                to: request.requester,
+                rideId: request.rideId,
+                message: `Hi ${request.requester.name}! Thank you for your interest in my ride. I prefer to communicate through the app messaging system for now. Feel free to ask any questions about the ride here!`,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+            
+            loadContactRequests();
+            updateContactNotifications();
+            showNotification('Contact request declined politely', 'info');
+        }
+
+        function updateContactNotifications() {
+            const pendingRequests = contactRequests.filter(req => 
+                req.driver.id === currentUser.id && req.status === 'pending'
+            ).length;
+            
+            const badges = ['contactNotificationBadge', 'mobileContactNotificationBadge'];
+            badges.forEach(badgeId => {
+                const badge = document.getElementById(badgeId);
+                if (badge) {
+                    if (pendingRequests > 0) {
+                        badge.textContent = pendingRequests;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            });
+        }
+
+        // Messages functions
+        function loadMessages() {
+            const messagesList = document.getElementById('messagesList');
+            const userMessages = messages.filter(m => 
+                m.from.id === currentUser.id || m.to.id === currentUser.id
+            );
+
+            if (userMessages.length === 0) {
+                messagesList.innerHTML = '<div class="text-center py-8 text-gray-500">No messages yet</div>';
+                return;
+            }
+
+            messagesList.innerHTML = userMessages.map(message => {
+                const isFromCurrentUser = message.from.id === currentUser.id;
+                const otherUser = isFromCurrentUser ? message.to : message.from;
+                
+                return `
+                    <div class="border rounded-lg p-4 ${isFromCurrentUser ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-semibold text-gray-800">
+                                ${isFromCurrentUser ? 'To: ' + otherUser.name : 'From: ' + otherUser.name}
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                ${new Date(message.timestamp).toLocaleString()}
+                            </div>
+                        </div>
+                        <div class="text-gray-700">${message.message}</div>
+                        <div class="mt-2">
+                            <button onclick="replyToMessage(${message.id})" class="text-orange-600 hover:text-orange-800 text-sm font-medium">
+                                Reply
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function replyToMessage(messageId) {
+            const originalMessage = messages.find(m => m.id === messageId);
+            if (!originalMessage) return;
+
+            const reply = window.prompt('Enter your reply:');
+            if (!reply) return;
+
+            const otherUser = originalMessage.from.id === currentUser.id ? originalMessage.to : originalMessage.from;
+            
+            messages.push({
+                id: Date.now(),
+                from: currentUser,
+                to: otherUser,
+                rideId: originalMessage.rideId,
+                message: reply,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+
+            loadMessages();
+            showNotification('Reply sent!', 'success');
+        }
+
+        // My Rides functions
+        function showMyPostedRides() {
+            document.getElementById('postedRidesTab').className = 'px-4 py-2 bg-orange-500 text-white rounded-lg';
+            document.getElementById('bookedRidesTab').className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg';
+            
+            const myRides = rides.filter(ride => ride.driver.id === currentUser.id);
+            const myRidesList = document.getElementById('myRidesList');
+            
+            if (myRides.length === 0) {
+                myRidesList.innerHTML = '<div class="text-center py-8 text-gray-500">You haven\'t posted any rides yet</div>';
+                return;
+            }
+
+            myRidesList.innerHTML = myRides.map(ride => `
+                <div class="border rounded-lg p-4 bg-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="font-semibold text-gray-800">${ride.from} → ${ride.to}</div>
+                        <div class="text-orange-600 font-bold">₹${ride.price}</div>
+                    </div>
+                    <div class="text-sm text-gray-600 mb-2">${ride.date} at ${ride.time}</div>
+                    <div class="text-sm text-gray-600 mb-2">${ride.bookedSeats}/${ride.seats} seats booked</div>
+                    <div class="flex space-x-2">
+                        <button onclick="editRide(${ride.id})" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                            Edit
+                        </button>
+                        <button onclick="cancelRide(${ride.id})" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showMyBookedRides() {
+            document.getElementById('postedRidesTab').className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg';
+            document.getElementById('bookedRidesTab').className = 'px-4 py-2 bg-orange-500 text-white rounded-lg';
+            
+            const myBookings = bookings.filter(booking => booking.passenger.id === currentUser.id);
+            const myRidesList = document.getElementById('myRidesList');
+            
+            if (myBookings.length === 0) {
+                myRidesList.innerHTML = '<div class="text-center py-8 text-gray-500">You haven\'t booked any rides yet</div>';
+                return;
+            }
+
+            myRidesList.innerHTML = myBookings.map(booking => {
+                const ride = rides.find(r => r.id === booking.rideId);
+                if (!ride) return '';
+                
+                return `
+                    <div class="border rounded-lg p-4 bg-white">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-semibold text-gray-800">${ride.from} → ${ride.to}</div>
+                            <div class="text-orange-600 font-bold">₹${ride.price}</div>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-2">Driver: ${ride.driver.name}</div>
+                        <div class="text-sm text-gray-600 mb-2">${ride.date} at ${ride.time}</div>
+                        <div class="text-sm text-gray-600 mb-2">Status: <span class="text-green-600 font-medium">${booking.status}</span></div>
+                        <div class="flex space-x-2">
+                            <button onclick="contactDriver(${ride.id})" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                                Contact Driver
+                            </button>
+                            <button onclick="cancelBooking(${booking.id})" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                                Cancel Booking
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function editRide(rideId) {
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride) return;
+
+            // Populate the edit form with current ride data
+            document.getElementById('editRideId').value = ride.id;
+            document.getElementById('editRideFrom').value = ride.from;
+            document.getElementById('editRideTo').value = ride.to;
+            document.getElementById('editRideDateTime').value = ride.date + 'T' + ride.time;
+            document.getElementById('editRideSeats').value = ride.seats;
+            document.getElementById('editRidePrice').value = ride.price;
+            document.getElementById('editRideNotes').value = ride.notes || '';
+            
+            // Set contact privacy radio button
+            const contactPrivacy = ride.contactPrivacy || 'request';
+            if (contactPrivacy === 'public') {
+                document.getElementById('editContactPublic').checked = true;
+            } else if (contactPrivacy === 'messages') {
+                document.getElementById('editContactMessages').checked = true;
+            } else {
+                document.getElementById('editContactRequest').checked = true;
+            }
+
+            // Show the edit modal
+            document.getElementById('editRideModal').style.display = 'block';
+        }
+
+        function handleEditRide(event) {
+            event.preventDefault();
+            
+            const rideId = parseInt(document.getElementById('editRideId').value);
+            const rideIndex = rides.findIndex(r => r.id === rideId);
+            
+            if (rideIndex === -1) {
+                showNotification('Ride not found', 'error');
+                return;
+            }
+
+            const editContactPrivacy = document.querySelector('input[name="editContactPrivacy"]:checked').value;
+            
+            // Update the ride with new data
+            rides[rideIndex] = {
+                ...rides[rideIndex],
+                from: document.getElementById('editRideFrom').value,
+                to: document.getElementById('editRideTo').value,
+                date: document.getElementById('editRideDateTime').value.split('T')[0],
+                time: document.getElementById('editRideDateTime').value.split('T')[1],
+                seats: parseInt(document.getElementById('editRideSeats').value),
+                price: parseInt(document.getElementById('editRidePrice').value),
+                notes: document.getElementById('editRideNotes').value,
+                contactPrivacy: editContactPrivacy
+            };
+
+            // Refresh displays
+            displayRides();
+            showMyPostedRides();
+            closeModal('editRideModal');
+            showNotification('Ride updated successfully!', 'success');
+        }
+
+        function cancelRide(rideId) {
+            if (window.confirm('Are you sure you want to cancel this ride?')) {
+                rides = rides.filter(ride => ride.id !== rideId);
+                showMyPostedRides();
+                displayRides();
+                showNotification('Ride cancelled successfully', 'success');
+            }
+        }
+
+        function cancelBooking(bookingId) {
+            if (window.confirm('Are you sure you want to cancel this booking?')) {
+                const booking = bookings.find(b => b.id === bookingId);
+                if (booking) {
+                    const ride = rides.find(r => r.id === booking.rideId);
+                    if (ride) {
+                        ride.bookedSeats--;
+                    }
+                    bookings = bookings.filter(b => b.id !== bookingId);
+                    showMyBookedRides();
+                    displayRides();
+                    showNotification('Booking cancelled successfully', 'success');
+                }
+            }
+        }
+
+        // Profile functions
+        function loadProfile() {
+            const profileContent = document.getElementById('profileContent');
+            profileContent.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-4 mb-6">
+                        <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                            <span class="text-orange-600 font-bold text-2xl">${currentUser.name.charAt(0)}</span>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">${currentUser.name}</h3>
+                            <div class="flex items-center">
+                                <span class="text-yellow-400">★</span>
+                                <span class="text-gray-600 ml-1">${currentUser.rating} rating</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-orange-50 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-orange-600">${currentUser.ridesPosted}</div>
+                            <div class="text-sm text-gray-600">Rides Posted</div>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-blue-600">${currentUser.ridesBooked}</div>
+                            <div class="text-sm text-gray-600">Rides Booked</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-1">Email</label>
+                            <div class="text-gray-600">${currentUser.email}</div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-1">Phone</label>
+                            <div class="text-gray-600">${currentUser.phone}</div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="editProfile()" class="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                        Edit Profile
+                    </button>
+                </div>
+            `;
+        }
+
+        function editProfile() {
+            const profileContent = document.getElementById('profileContent');
+            profileContent.innerHTML = `
+                <form id="editProfileForm" onsubmit="handleEditProfile(event)">
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-4 mb-6">
+                            <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                                <span class="text-orange-600 font-bold text-2xl">${currentUser.name.charAt(0)}</span>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Edit Profile</h3>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Full Name</label>
+                            <input type="text" id="editProfileName" value="${currentUser.name}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                            <input type="email" id="editProfileEmail" value="${currentUser.email}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Phone</label>
+                            <input type="tel" id="editProfilePhone" value="${currentUser.phone}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                        </div>
+                        
+                        <div class="flex space-x-4">
+                            <button type="submit" class="flex-1 bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                                Save Changes
+                            </button>
+                            <button type="button" onclick="loadProfile()" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            `;
+        }
+
+        function handleEditProfile(event) {
+            event.preventDefault();
+            
+            const newEmail = document.getElementById('editProfileEmail').value;
+            const newPhone = document.getElementById('editProfilePhone').value;
+            
+            // Check if new email already exists (excluding current user)
+            if (newEmail !== currentUser.email) {
+                const existingUser = userDatabase.find(u => u.email === newEmail && u.id !== currentUser.id);
+                if (existingUser) {
+                    showNotification('This email is already registered to another account.', 'error');
+                    return;
+                }
+            }
+            
+            // Check if new phone already exists (excluding current user)
+            if (newPhone !== currentUser.phone) {
+                const existingPhone = userDatabase.find(u => u.phone === newPhone && u.id !== currentUser.id);
+                if (existingPhone) {
+                    showNotification('This phone number is already registered to another account.', 'error');
+                    return;
+                }
+            }
+            
+            // Update current user data
+            currentUser.name = document.getElementById('editProfileName').value;
+            currentUser.email = newEmail;
+            currentUser.phone = newPhone;
+            
+            // Update in database
+            const userIndex = userDatabase.findIndex(u => u.id === currentUser.id);
+            if (userIndex !== -1) {
+                userDatabase[userIndex] = { ...userDatabase[userIndex], ...currentUser };
+                localStorage.setItem('mecride_user_database', JSON.stringify(userDatabase));
+            }
+            
+            // Save to localStorage
+            localStorage.setItem('mecride_user', JSON.stringify(currentUser));
+            
+            // Update any rides posted by this user
+            rides.forEach(ride => {
+                if (ride.driver.id === currentUser.id) {
+                    ride.driver = { ...ride.driver, ...currentUser };
+                }
+            });
+            
+            // Refresh displays
+            displayRides();
+            loadProfile();
+            showNotification('Profile updated successfully!', 'success');
+        }
+
+        // Utility functions
+        function scrollToRides() {
+            document.getElementById('ridesSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        // Notification System Functions
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        showNotification('Notifications enabled! You\'ll receive ride updates and reminders.', 'success');
+                    }
+                });
+            }
+        }
+
+        function sendPushNotification(user, title, body, type = 'info') {
+            // Store notification for the user
+            notifications.push({
+                id: Date.now(),
+                userId: user.id,
+                title: title,
+                body: body,
+                type: type,
+                timestamp: new Date().toISOString(),
+                read: false
+            });
+
+            // Show browser notification if permission granted and user is current user
+            if ('Notification' in window && Notification.permission === 'granted' && 
+                currentUser && user.id === currentUser.id) {
+                
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiIGZpbGw9IiNmOTczMTYiLz4KPHN2ZyB4PSIxNiIgeT0iMTYiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik04IDE2LjVhMS41IDEuNSAwIDExLTMgMCAxLjUgMS41IDAgMDEzIDB6TTEzIDE2LjVhMS41IDEuNSAwIDExLTMgMCAxLjUgMS41IDAgMDEzIDB6Ii8+CjxwYXRoIGQ9Ik0zIDRhMSAxIDAgMDAtMSAxdjEwYTEgMSAwIDAwMSAxaDEuMDVhMi41IDIuNSAwIDAxNC45IDBIMTBhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFIM3pNMTQgN2ExIDEgMCAwMC0xIDF2Ni4wNUEyLjUgMi41IDAgMDExNS45NSAxNkgxN2ExIDEgMCAwMDEtMVY4YTEgMSAwIDAwLTEtMWgtM3oiLz4KPC9zdmc+Cjwvc3ZnPgo=',
+                    badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiIGZpbGw9IiNmOTczMTYiLz4KPHN2ZyB4PSIxNiIgeT0iMTYiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik04IDE2LjVhMS41IDEuNSAwIDExLTMgMCAxLjUgMS41IDAgMDEzIDB6TTEzIDE2LjVhMS41IDEuNSAwIDExLTMgMCAxLjUgMS41IDAgMDEzIDB6Ii8+CjxwYXRoIGQ9Ik0zIDRhMSAxIDAgMDAtMSAxdjEwYTEgMSAwIDAwMSAxaDEuMDVhMi41IDIuNSAwIDAxNC45IDBIMTBhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFIM3pNMTQgN2ExIDEgMCAwMC0xIDF2Ni4wNUEyLjUgMi41IDAgMDExNS45NSAxNkgxN2ExIDEgMCAwMDEtMVY4YTEgMSAwIDAwLTEtMWgtM3oiLz4KPC9zdmc+Cjwvc3ZnPgo=',
+                    tag: type,
+                    requireInteraction: type === 'booking' || type === 'reminder'
+                });
+
+                // Auto close after 5 seconds for non-critical notifications
+                if (type !== 'booking' && type !== 'reminder') {
+                    setTimeout(() => notification.close(), 5000);
+                }
+            }
+
+            // Show in-app notification as well
+            showNotification(`${title}: ${body}`, type === 'booking' ? 'success' : 'info');
+        }
+
+        function scheduleRideReminders(rideId, user, userType) {
+            const ride = rides.find(r => r.id === rideId);
+            if (!ride) return;
+
+            const rideDateTime = new Date(`${ride.date}T${ride.time}`);
+            const now = new Date();
+
+            // Schedule reminders at different intervals
+            const reminderTimes = [
+                { hours: 24, label: '24 hours' },
+                { hours: 2, label: '2 hours' },
+                { hours: 0.5, label: '30 minutes' }
+            ];
+
+            reminderTimes.forEach(reminder => {
+                const reminderTime = new Date(rideDateTime.getTime() - (reminder.hours * 60 * 60 * 1000));
+                
+                if (reminderTime > now) {
+                    const timeoutId = setTimeout(() => {
+                        sendRideReminder(ride, user, userType, reminder.label);
+                    }, reminderTime.getTime() - now.getTime());
+
+                    reminderTimers.push({
+                        id: timeoutId,
+                        rideId: rideId,
+                        userId: user.id,
+                        reminderTime: reminderTime,
+                        label: reminder.label
+                    });
+                }
+            });
+        }
+
+        function sendRideReminder(ride, user, userType, timeLabel) {
+            const isDriver = userType === 'driver';
+            const title = isDriver ? 'Ride Reminder - You\'re Driving!' : 'Ride Reminder - Your Trip';
+            const body = `${timeLabel} until your ride from ${ride.from} to ${ride.to}`;
+
+            sendPushNotification(user, title, body, 'reminder');
+
+            // Send email reminder (simulated)
+            sendEmailReminder(user, ride, timeLabel, isDriver);
+            
+            // Send SMS reminder (simulated)
+            sendSMSReminder(user, ride, timeLabel, isDriver);
+        }
+
+        function sendEmailReminder(user, ride, timeLabel, isDriver) {
+            // Simulate email sending
+            console.log(`📧 EMAIL SENT TO: ${user.email}`);
+            console.log(`Subject: MECRide - ${isDriver ? 'Driving' : 'Trip'} Reminder (${timeLabel})`);
+            console.log(`Body: Hi ${user.name},
+            
+This is a reminder that you have a ${isDriver ? 'ride to drive' : 'booked ride'} in ${timeLabel}.
+
+Ride Details:
+• From: ${ride.from}
+• To: ${ride.to}
+• Date: ${ride.date}
+• Time: ${ride.time}
+• Price: ₹${ride.price}
+
+${isDriver ? 
+`You have ${ride.bookedSeats} passenger(s) booked for this ride.` : 
+`Driver: ${ride.driver.name} (${ride.driver.phone})`}
+
+Have a safe journey!
+
+Best regards,
+MECRide Team`);
+
+            // Show confirmation in app
+            if (currentUser && user.id === currentUser.id) {
+                showNotification(`📧 Email reminder sent to ${user.email}`, 'info');
+            }
+        }
+
+        function sendSMSReminder(user, ride, timeLabel, isDriver) {
+            // Simulate SMS sending
+            const smsText = `MECRide: ${isDriver ? 'Driving' : 'Trip'} reminder! ${timeLabel} until your ride ${ride.from} → ${ride.to} at ${ride.time}. Safe travels!`;
+            
+            console.log(`📱 SMS SENT TO: ${user.phone}`);
+            console.log(`Message: ${smsText}`);
+
+            // Show confirmation in app
+            if (currentUser && user.id === currentUser.id) {
+                showNotification(`📱 SMS reminder sent to ${user.phone}`, 'info');
+            }
+        }
+
+        function startReminderSystem() {
+            if (!currentUser) return;
+
+            // Check for any existing rides that need reminders
+            const userRides = rides.filter(ride => 
+                ride.driver.id === currentUser.id || 
+                bookings.some(booking => booking.passenger.id === currentUser.id && booking.rideId === ride.id)
+            );
+
+            userRides.forEach(ride => {
+                const isDriver = ride.driver.id === currentUser.id;
+                const userType = isDriver ? 'driver' : 'passenger';
+                
+                // Clear existing reminders for this ride and user
+                reminderTimers = reminderTimers.filter(timer => 
+                    !(timer.rideId === ride.id && timer.userId === currentUser.id)
+                );
+                
+                // Schedule new reminders
+                scheduleRideReminders(ride.id, currentUser, userType);
+            });
+        }
+
+        function checkRideReminders() {
+            // This function runs every minute to check for any missed reminders
+            // In a real app, this would be handled by a backend service
+            if (!currentUser) return;
+
+            const now = new Date();
+            
+            // Check for rides happening soon that might not have reminders set
+            const userRides = rides.filter(ride => {
+                const rideDateTime = new Date(`${ride.date}T${ride.time}`);
+                const timeDiff = rideDateTime.getTime() - now.getTime();
+                const hoursUntilRide = timeDiff / (1000 * 60 * 60);
+                
+                return (ride.driver.id === currentUser.id || 
+                        bookings.some(booking => booking.passenger.id === currentUser.id && booking.rideId === ride.id)) &&
+                       hoursUntilRide > 0 && hoursUntilRide <= 24;
+            });
+
+            userRides.forEach(ride => {
+                const hasReminders = reminderTimers.some(timer => 
+                    timer.rideId === ride.id && timer.userId === currentUser.id
+                );
+                
+                if (!hasReminders) {
+                    const isDriver = ride.driver.id === currentUser.id;
+                    const userType = isDriver ? 'driver' : 'passenger';
+                    scheduleRideReminders(ride.id, currentUser, userType);
+                }
+            });
+        }
+
+        // Close modals and mobile menu when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+            
+            // Close mobile menu when clicking outside
+            const mobileMenu = document.getElementById('mobileNavMenu');
+            const mobileMenuButton = event.target.closest('button[onclick="toggleMobileMenu()"]');
+            const mobileMenuContent = event.target.closest('#mobileNavMenu');
+            
+            if (!mobileMenuButton && !mobileMenuContent && !mobileMenu.classList.contains('hidden')) {
+                closeMobileMenu();
+            }
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96e12661a78e7ef7',t:'MTc1NTAxNDA1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
